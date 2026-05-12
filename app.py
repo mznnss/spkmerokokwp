@@ -84,7 +84,6 @@ st.markdown("""
 # HEADER
 # =========================
 st.image("logo.png", width=100)
-st.image("logo.png", width=100)
 st.markdown('<div class="title">🚭 SPK Faktor Penyebab Kecanduan Merokok</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Metode Simple Additive Weighting (SAW)</div>', unsafe_allow_html=True)
 st.markdown("---")
