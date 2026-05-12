@@ -4,6 +4,10 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from io import BytesIO
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
 
 st.set_page_config(
     page_title="SPK Faktor Kecanduan Merokok",
@@ -55,12 +59,32 @@ st.markdown("""
     color: #94a3b8;
     font-size: 18px;
 }
+
+.stSpinner > div {
+    border-top-color: #38bdf8 !important;
+}
+
+.block-container {
+    padding-top: 1rem;
+    background: linear-gradient(180deg,#020617,#0f172a);
+}
+
+.stSpinner > div {
+    border-top-color: #38bdf8 !important;
+}
+
+.block-container {
+    padding-top: 1rem;
+    background: linear-gradient(180deg,#020617,#0f172a);
+}
 </style>
 """, unsafe_allow_html=True)
 
 # =========================
 # HEADER
 # =========================
+st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/No-smoking.svg/240px-No-smoking.svg.png", width=100)
+st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/No-smoking.svg/240px-No-smoking.svg.png", width=100)
 st.markdown('<div class="title">🚭 SPK Faktor Penyebab Kecanduan Merokok</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Metode Simple Additive Weighting (SAW)</div>', unsafe_allow_html=True)
 st.markdown("---")
@@ -245,6 +269,52 @@ if uploaded_file:
             data=csv,
             file_name='hasil_saw.csv',
             mime='text/csv'
+        )
+
+        # =========================
+        # EXPORT PDF
+        # =========================
+        def create_pdf(dataframe, top_factor, top_score):
+            buffer = BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=letter)
+            styles = getSampleStyleSheet()
+            elements = []
+
+            title = Paragraph("Hasil Analisis SPK Faktor Penyebab Kecanduan Merokok", styles['Title'])
+            elements.append(title)
+            elements.append(Spacer(1, 12))
+
+            summary = Paragraph(
+                f"Faktor paling dominan adalah <b>{top_factor}</b> dengan nilai <b>{top_score:.3f}</b>.",
+                styles['BodyText']
+            )
+            elements.append(summary)
+            elements.append(Spacer(1, 12))
+
+            table_data = [list(dataframe.columns)] + dataframe.values.tolist()
+
+            table = Table(table_data)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.black),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ]))
+
+            elements.append(table)
+
+            doc.build(elements)
+            buffer.seek(0)
+            return buffer
+
+        pdf_file = create_pdf(ranking_df, top_factor, top_score)
+
+        st.download_button(
+            label="📄 Download PDF",
+            data=pdf_file,
+            file_name="hasil_spk_merokok.pdf",
+            mime="application/pdf"
         )
 
     # =========================
