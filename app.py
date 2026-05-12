@@ -83,8 +83,8 @@ st.markdown("""
 # =========================
 # HEADER
 # =========================
-st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/No-smoking.svg/240px-No-smoking.svg.png", width=100)
-st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/No-smoking.svg/240px-No-smoking.svg.png", width=100)
+st.image("https://unpam.ac.id/logo-unpam/", width=100)
+st.image("https://unpam.ac.id/logo-unpam/", width=100)
 st.markdown('<div class="title">🚭 SPK Faktor Penyebab Kecanduan Merokok</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Metode Simple Additive Weighting (SAW)</div>', unsafe_allow_html=True)
 st.markdown("---")
