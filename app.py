@@ -68,15 +68,6 @@ st.markdown("""
     padding-top: 1rem;
     background: linear-gradient(180deg,#020617,#0f172a);
 }
-
-.stSpinner > div {
-    border-top-color: #38bdf8 !important;
-}
-
-.block-container {
-    padding-top: 1rem;
-    background: linear-gradient(180deg,#020617,#0f172a);
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -271,48 +262,124 @@ if uploaded_file:
         )
 
         # =========================
-        # EXPORT PDF
+        # EXPORT PDF LENGKAP
         # =========================
-        def create_pdf(dataframe, top_factor, top_score):
+        def create_pdf(dataframe, criteria_df, top_factor, top_score, total_responden):
             buffer = BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=letter)
             styles = getSampleStyleSheet()
             elements = []
 
-            title = Paragraph("Hasil Analisis SPK Faktor Penyebab Kecanduan Merokok", styles['Title'])
+            # JUDUL
+            title = Paragraph(
+                "<b>Sistem Pendukung Keputusan Faktor Penyebab Kecanduan Merokok</b>",
+                styles['Title']
+            )
             elements.append(title)
             elements.append(Spacer(1, 12))
 
-            summary = Paragraph(
-                f"Faktor paling dominan adalah <b>{top_factor}</b> dengan nilai <b>{top_score:.3f}</b>.",
+            subtitle = Paragraph(
+                "Metode Simple Additive Weighting (SAW)",
+                styles['Heading2']
+            )
+            elements.append(subtitle)
+            elements.append(Spacer(1, 20))
+
+            # INFORMASI
+            info = Paragraph(
+                f"Jumlah responden: <b>{total_responden}</b><br/>"
+                f"Faktor dominan: <b>{top_factor}</b><br/>"
+                f"Nilai tertinggi SAW: <b>{top_score:.3f}</b>",
                 styles['BodyText']
             )
-            elements.append(summary)
-            elements.append(Spacer(1, 12))
 
-            table_data = [list(dataframe.columns)] + dataframe.values.tolist()
+            elements.append(info)
+            elements.append(Spacer(1, 20))
 
-            table = Table(table_data)
-            table.setStyle(TableStyle([
+            # TABEL RATA-RATA
+            rata_title = Paragraph(
+                "<b>Tabel Nilai Rata-rata Faktor</b>",
+                styles['Heading3']
+            )
+            elements.append(rata_title)
+            elements.append(Spacer(1, 10))
+
+            criteria_table_data = [list(criteria_df.columns)] + criteria_df.values.tolist()
+
+            criteria_table = Table(criteria_table_data)
+            criteria_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.darkblue),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+            ]))
+
+            elements.append(criteria_table)
+            elements.append(Spacer(1, 20))
+
+            # TABEL RANKING
+            ranking_title = Paragraph(
+                "<b>Tabel Ranking Faktor Penyebab</b>",
+                styles['Heading3']
+            )
+            elements.append(ranking_title)
+            elements.append(Spacer(1, 10))
+
+            ranking_table_data = [list(dataframe.columns)] + dataframe.values.tolist()
+
+            ranking_table = Table(ranking_table_data)
+            ranking_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.black),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('GRID', (0, 0), (-1, -1), 1, colors.grey),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
             ]))
 
-            elements.append(table)
+            elements.append(ranking_table)
+            elements.append(Spacer(1, 20))
+
+            # KESIMPULAN
+            kesimpulan_title = Paragraph(
+                "<b>Kesimpulan</b>",
+                styles['Heading3']
+            )
+            elements.append(kesimpulan_title)
+            elements.append(Spacer(1, 10))
+
+            kesimpulan = Paragraph(
+                f"Berdasarkan hasil analisis menggunakan metode SAW, faktor <b>{top_factor}</b> "
+                f"menjadi faktor paling dominan penyebab kecanduan merokok dengan nilai <b>{top_score:.3f}</b>. "
+                "Hasil ini menunjukkan bahwa faktor tersebut memiliki pengaruh paling besar dibandingkan faktor lainnya.",
+                styles['BodyText']
+            )
+
+            elements.append(kesimpulan)
+            elements.append(Spacer(1, 20))
+
+            footer = Paragraph(
+                "Laporan dibuat otomatis oleh Sistem Pendukung Keputusan Berbasis Streamlit.",
+                styles['Italic']
+            )
+            elements.append(footer)
 
             doc.build(elements)
             buffer.seek(0)
             return buffer
 
-        pdf_file = create_pdf(ranking_df, top_factor, top_score)
+        pdf_file = create_pdf(
+            ranking_df,
+            criteria_df,
+            top_factor,
+            top_score,
+            len(df)
+        )
 
         st.download_button(
-            label="📄 Download PDF",
+            label="📄 Download PDF Lengkap",
             data=pdf_file,
-            file_name="hasil_spk_merokok.pdf",
+            file_name="laporan_spk_merokok.pdf",
             mime="application/pdf"
         )
 
