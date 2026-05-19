@@ -10,8 +10,16 @@ st.set_page_config(
     layout="wide"
 )
 
+# Inisialisasi session state untuk menampung data kuesioner bobot simulasi
+if 'kuesioner_bobot_data' not in st.session_state:
+    st.session_state.kuesioner_bobot_data = pd.DataFrame(columns=[
+        "Nama Penilai", "Psikologis (Stres)", "Lingkungan (Teman)", "Kebiasaan (Rutinitas)", 
+        "Ekonomi (Harga)", "Ketergantungan (Nikotin)", "Intensitas (Jumlah)", 
+        "Efek Sosial (Gaya)", "Kondisi Fisik (Sakit)", "Pengetahuan (Bahaya)"
+    ])
+
 # =========================================================================
-# CLASS MURNI METODE SAW (Sesuai Landasan Teori Makalah)
+# CLASS MURNI METODE SAW (Sesuai Modul Hal 1 & Makalah Bab 2.2)
 # =========================================================================
 class SAWMethod:
     def __init__(self, data: pd.DataFrame, weights: List[float], criteria_type: List[str]):
@@ -22,18 +30,16 @@ class SAWMethod:
         self.scores = None
 
     def normalize_matrix(self) -> pd.DataFrame:
-        """Normalisasi matriks keputusan (R) [Sesuai Makalah Bab 2.2 & 4.2.2]"""
+        """Normalisasi matriks keputusan (R) [Sesuai Modul & Makalah]"""
         normalized_data = self.data.copy()
         for i, col in enumerate(self.data.columns[1:]):  # Skip kolom Alternatif
             if self.criteria_type[i] == 'benefit':
-                # Rumus Benefit: Xij / max(Xij) [Sesuai Makalah Bab 4.2.2]
                 max_val = self.data[col].max()
                 if max_val == 0: 
                     normalized_data[col] = 0
                 else:
                     normalized_data[col] = self.data[col] / max_val
             else: # cost
-                # Rumus Cost: min(Xij) / Xij [Sesuai Makalah Bab 4.2.2]
                 min_val = self.data[col].min()
                 normalized_data[col] = np.where(
                     self.data[col] != 0,
@@ -44,7 +50,7 @@ class SAWMethod:
         return normalized_data
 
     def calculate_scores(self) -> pd.DataFrame:
-        """Hitung nilai preferensi (Vi) [Sesuai Makalah Bab 4.2.3]"""
+        """Hitung nilai preferensi akhir (Vi)"""
         if self.normalized_data is None:
             self.normalize_matrix()
         criteria_columns = self.normalized_data.columns[1:]
@@ -62,108 +68,132 @@ class SAWMethod:
         return result
 
 # =========================================================================
-# INTERMUKA WEB STREAMLIT (Sesuai Desain Makalah UNPAM)
+# INTERMUKA WEB STREAMLIT (Sesuai Standar Aplikasi Web UNPAM)
 # =========================================================================
 st.title("🚭 SPK Faktor Penyebab Kecanduan Merokok")
-st.caption("Implementasi Metode Simple Additive Weighting (SAW) - Tugas Project Universitas Pamulang")
+st.caption("Modul Terintegrasi: Filter Bobot Kuesioner Interaktif & Engine Perhitungan SAW Ganda (Benefit & Cost)")
 st.markdown("---")
 
 # -------------------------------------------------------------------------
-# SIDEBAR: PANEL FILTERING SIMULASI (Sesuai Desain Makalah Bab 4.3.1)
+# SIDEBAR: PANEL FORM KUESIONER BOBOT (Filter Google Form Berbasis Kata Kunci)
 # -------------------------------------------------------------------------
-st.sidebar.title("🔍 Panel Filter Tingkat Keparahan")
-st.sidebar.markdown("Silakan filter kriteria simulasi kelompok perokok:")
+st.sidebar.title("🔌 Filter & Simulasi Bobot Pakar")
+st.sidebar.markdown("Masukkan penilaian pakar untuk menentukan bobot kriteria ($W$). Sistem akan memfilter kata kunci secara otomatis.")
 
-filter_usia = st.sidebar.slider("Batas Minimum Usia Responden (Cost)", min_value=12, max_value=60, value=15)
-min_intensitas = st.sidebar.number_input("Minimal Skor Intensitas Merokok (1-100)", min_value=10, max_value=100, value=30, step=5)
-
-# -------------------------------------------------------------------------
-# DATASET REPLIKA MATRIKS KEPUTUSAN ROKOK (Format Sesuai Makalah Bab 4.2.1)
-# -------------------------------------------------------------------------
-dataset_merokok = pd.DataFrame({
-    'Alternatif': [
-        'A1 (Kelompok Perokok Ringan)', 
-        'A2 (Kelompok Perokok Sedang)', 
-        'A3 (Kelompok Perokok Berat)'
-    ],
-    'C1 (Psikologis)': [60, 80, 95],
-    'C2 (Lingkungan)': [85, 75, 60],
-    'C3 (Kebiasaan)': [55, 75, 90],
-    'C4 (Ketergantungan)': [40, 70, 95],
-    'C5 (Intensitas)': [35, 65, 90],
-    'C6 (Efek Sosial)': [70, 75, 80],
-    'C7 (Kondisi Fisik)': [50, 70, 85],
-    'C8 (Pengetahuan Bahaya)': [80, 50, 30], # Cost (Semakin tahu bahaya, harusnya tingkat kecanduan rendah)
-    'C9 (Rata-rata Usia)': [17, 28, 42]        # Cost (Semakin muda usia mulai merokok, semakin kritis dampaknya)
-})
-
-# -------------------------------------------------------------------------
-# PROSES FILTER DATA / FALLBACK SYSTEM (Sesuai Konsep Makalah Bab 4.3.4)
-# -------------------------------------------------------------------------
-df_filtered = dataset_merokok[
-    (dataset_merokok['C9 (Rata-rata Usia)'] >= filter_usia) & 
-    (dataset_merokok['C5 (Intensitas)'] >= min_intensitas)
-]
-
-# Jalankan Fallback System jika filter user terlalu ketat hingga data kosong
-if df_filtered.empty:
-    st.warning("⚠️ **Fallback System Aktif:** Filter terlalu ketat untuk budget/kriteria data. Sistem menurunkan batas Intensitas secara otomatis agar data tetap tampil.")
-    df_filtered = dataset_merokok[dataset_merokok['C9 (Rata-rata Usia)'] >= filter_usia]
-
-# -------------------------------------------------------------------------
-# PROSES KALKULASI SAW MURNI (Sesuai Logika Bab 4.1 & 4.2)
-# -------------------------------------------------------------------------
-if not df_filtered.empty:
+with st.sidebar.form(key="form_simulasi_bobot", clear_on_submit=True):
+    nama_pakar = st.text_input("Nama Penilai/Pakar", value=f"Pakar {len(st.session_state.kuesioner_bobot_data) + 1}")
+    options = ["Sangat Tidak Penting", "Tidak Penting", "Cukup Penting", "Penting", "Sangat Penting"]
     
-    # Nilai Bobot Rata-rata dari Kuesioner (Total wajib 1.00 sesuai Makalah Bab 4.1)
-    weights = [0.15, 0.15, 0.12, 0.10, 0.08, 0.08, 0.07, 0.10, 0.15]
+    # Kuesioner dirancang 9 kriteria agar strukturnya sama kaya Makalah Laptop UNPAM (C1 - C9)
+    q1 = st.selectbox("C1. Tingkat Emosi/Stres (Psikologis)", options=options, index=3)
+    q2 = st.selectbox("C2. Pengaruh Teman Sebaya (Lingkungan)", options=options, index=4)
+    q3 = st.selectbox("C3. Efek Setelah Makan (Kebiasaan)", options=options, index=3)
+    q4 = st.selectbox("C4. Ketergantungan Zat (Nikotin)", options=options, index=4)
+    q5 = st.selectbox("C5. Jumlah Konsumsi Harian (Intensitas)", options=options, index=3)
+    q6 = st.selectbox("C6. Gengsi/Sosial (Efek Sosial)", options=options, index=2)
+    q7 = st.selectbox("C7. Mulut Terasa Pahit (Kondisi Fisik)", options=options, index=3)
+    q8 = st.selectbox("C8. Harga Rokok Mahal (Ekonomi)", options=options, index=2) # Cost
+    q9 = st.selectbox("C9. Paham Dampak Kanker (Pengetahuan)", options=options, index=1) # Cost
     
-    # Penentuan Jenis Kriteria (C1-C7 Benefit, C8-C9 Cost sesuai Makalah Bab 4.2.1)
-    criteria_type = ['benefit', 'benefit', 'benefit', 'benefit', 'benefit', 'benefit', 'benefit', 'cost', 'cost']
+    submit_btn = st.form_submit_button(label="💾 Simpan & Filter Jawaban")
     
-    # Eksekusi Class SAWMethod Modul
-    saw = SAWMethod(df_filtered, weights, criteria_type)
-    
-    # Tampilan Layout Aplikasi Web UNPAM
-    col_kiri, col_kanan = st.columns(2)
-    
-    with col_kiri:
-        st.markdown("### 📊 Parameter Bobot Kriteria Hasil Kuesioner Laporan")
-        df_kriteria_laporan = pd.DataFrame({
-            "Kode": [f"C{i+1}" for i in range(9)],
-            "Kriteria": ["Psikologis", "Lingkungan", "Kebiasaan", "Ketergantungan", "Intensitas", "Efek Sosial", "Kondisi Fisik", "Pengetahuan Bahaya", "Rata-rata Usia"],
-            "Jenis Kriteria": criteria_type,
-            "Nilai Bobot Rata-rata (W)": weights
-        })
-        st.dataframe(df_kriteria_laporan, hide_index=True, use_container_width=True)
-        
-        st.markdown("### 🧮 Matriks Normalisasi (R) [Sesuai Bab 4.2.2]")
-        df_normalized = saw.normalize_matrix()
-        cols_to_show = [c for c in df_normalized.columns if c not in ['Score', 'Rank']]
-        st.dataframe(df_normalized[cols_to_show].round(3), hide_index=True, use_container_width=True)
+    if submit_btn:
+        new_row = {
+            "Nama Penilai": nama_pakar, "Psikologis (Stres)": q1, "Lingkungan (Teman)": q2, "Kebiasaan (Rutinitas)": q3,
+            "Ketergantungan (Nikotin)": q4, "Intensitas (Jumlah)": q5, "Efek Sosial (Gaya)": q6, 
+            "Kondisi Fisik (Sakit)": q7, "Ekonomi (Harga)": q8, "Pengetahuan (Bahaya)": q9
+        }
+        st.session_state.kuesioner_bobot_data = pd.concat([st.session_state.kuesioner_bobot_data, pd.DataFrame([new_row])], ignore_index=True)
+        st.rerun()
 
-    with col_kanan:
-        st.markdown("### 🏆 Hasil Perankingan Faktor Dominan [Sesuai Bab 4.2.3]")
-        ranking_result = saw.get_ranking()
-        st.dataframe(ranking_result.round(3), hide_index=True, use_container_width=True)
-        
-        # Output Kesimpulan Akhir (Sesuai Bab 4.2.3)
-        best_alt = ranking_result.iloc[0]['Alternatif']
-        best_score = ranking_result.iloc[0]['Score']
-        st.success(f"⭐ **HASIL EVALUASI PROYEK:** Kategori **{best_alt}** memiliki tingkat kecanduan paling tinggi/kritis dengan nilai akhir preferensi SAW sebesar **{best_score:.3f}**")
-        
-        # Visualisasi Data Interaktif (Sesuai Bab 4.3.3)
-        st.markdown("### 📈 Grafik Perbandingan Skor Hasil Analisis")
-        fig = px.bar(
-            ranking_result, 
-            x="Alternatif", 
-            y="Score", 
-            text_auto='.3f', 
-            color="Score", 
-            color_continuous_scale="Reds", 
-            template="plotly_dark"
-        )
-        st.plotly_chart(fig, use_container_width=True)
+if len(st.session_state.kuesioner_bobot_data) > 0:
+    if st.sidebar.button("🗑️ Reset Semua Data Pakar"):
+        st.session_state.kuesioner_bobot_data = pd.DataFrame(columns=[
+            "Nama Penilai", "Psikologis (Stres)", "Lingkungan (Teman)", "Kebiasaan (Rutinitas)", 
+            "Ekonomi (Harga)", "Ketergantungan (Nikotin)", "Intensitas (Jumlah)", 
+            "Efek Sosial (Gaya)", "Kondisi Fisik (Sakit)", "Pengetahuan (Bahaya)"
+        ])
+        st.rerun()
 
+# -------------------------------------------------------------------------
+# PROSES FILTER OTOMATIS & GENERATE BOBOT (W)
+# -------------------------------------------------------------------------
+nama_kriteria = ["Psikologis", "Lingkungan", "Kebiasaan", "Ketergantungan", "Intensitas", "Efek Sosial", "Kondisi Fisik", "Ekonomi", "Pengetahuan"]
+criteria_type = ['benefit', 'benefit', 'benefit', 'benefit', 'benefit', 'benefit', 'benefit', 'cost', 'cost']
+mapping_likert = {"Sangat Tidak Penting": 1, "Tidak Penting": 2, "Cukup Penting": 3, "Penting": 4, "Sangat Penting": 5}
+
+if not st.session_state.kuesioner_bobot_data.empty:
+    st.subheader("📄 1. Hasil Pengumpulan Kuesioner Penilai (Form Simulasi)")
+    st.dataframe(st.session_state.kuesioner_bobot_data, use_container_width=True)
+    
+    df_bobot_numeric = st.session_state.kuesioner_bobot_data.replace(mapping_likert)
+    
+    # Filter berbasis kata kunci sesuai keinginan awalmu (Mencari teks di dalam header kolom)
+    w_cols = [
+        [c for c in df_bobot_numeric.columns if "psikologis" in c.lower() or "stres" in c.lower()],
+        [c for c in df_bobot_numeric.columns if "lingkungan" in c.lower() or "teman" in c.lower()],
+        [c for c in df_bobot_numeric.columns if "kebiasaan" in c.lower() or "rutinitas" in c.lower()],
+        [c for c in df_bobot_numeric.columns if "ketergantungan" in c.lower() or "nikotin" in c.lower()],
+        [c for c in df_bobot_numeric.columns if "intensitas" in c.lower() or "jumlah" in c.lower()],
+        [c for c in df_bobot_numeric.columns if "sosial" in c.lower() or "gaya" in c.lower()],
+        [c for c in df_bobot_numeric.columns if "fisik" in c.lower() or "sakit" in c.lower()],
+        [c for c in df_bobot_numeric.columns if "ekonomi" in c.lower() or "harga" in c.lower()],
+        [c for c in df_bobot_numeric.columns if "pengetahuan" in c.lower() or "bahaya" in c.lower()]
+    ]
+    
+    raw_scores = [df_bobot_numeric[cols].astype(float).mean().mean() if len(cols) > 0 else 3.0 for cols in w_cols]
+    total_raw = sum(raw_scores)
+    weights = [score / total_raw for score in raw_scores]
 else:
-    st.error("❌ Data tidak ditemukan untuk simulasi ini. Harap sesuaikan filter di sidebar.")
+    weights = [0.15, 0.15, 0.12, 0.10, 0.08, 0.08, 0.07, 0.10, 0.15]
+    st.info("ℹ️ Belum ada data pakar diisi. Menggunakan parameter bobot default kuesioner UNPAM.")
+
+# -------------------------------------------------------------------------
+# 2. EVALUASI MATRIKS ALTERNATIF KELOMPOK PEROKOK
+# -------------------------------------------------------------------------
+st.subheader("📊 2. Matriks Keputusan Kelompok Perokok (Alternatif)")
+st.markdown("Kamu bisa menyunting nilai evaluasi (Skala 1-100) langsung pada tabel interaktif berikut:")
+
+default_alternatif = {
+    'Alternatif': ['A1 (Perokok Ringan)', 'A2 (Perokok Sedang)', 'A3 (Perokok Berat)'],
+    'C1 (Psikologis)': [55, 75, 95], 'C2 (Lingkungan)': [85, 70, 50], 'C3 (Kebiasaan)': [60, 80, 90],
+    'C4 (Ketergantungan)': [35, 65, 95], 'C5 (Intensitas)': [40, 70, 95], 'C6 (Efek Sosial)': [75, 70, 60],
+    'C7 (Kondisi Fisik)': [45, 65, 85], 'C8 (Ekonomi)': [80, 55, 35], 'C9 (Pengetahuan)': [85, 50, 25]
+}
+df_alternatif = pd.DataFrame(default_alternatif)
+matrix_data = st.data_editor(df_alternatif, hide_index=True, use_container_width=True)
+
+# -------------------------------------------------------------------------
+# 3. PERHITUNGAN DAN OUTPUT AKHIR SAW METHOD
+# -------------------------------------------------------------------------
+if matrix_data is not None:
+    saw = SAWMethod(matrix_data, weights, criteria_type)
+    
+    col_layout1, col_layout2 = st.columns(2)
+    
+    with col_layout1:
+        st.markdown("### 📋 Parameter & Bobot Akhir Hasil Filter")
+        df_parameter = pd.DataFrame({
+            "Kode": [f"C{i+1}" for i in range(9)],
+            "Kriteria": nama_kriteria,
+            "Tipe Atribut": saw.criteria_type,
+            "Bobot Terhitung (W)": saw.weights
+        })
+        st.dataframe(df_parameter, hide_index=True, use_container_width=True)
+        
+        st.markdown("### ⚙️ Matriks Hasil Normalisasi (R)")
+        df_norm_res = saw.normalize_matrix()
+        st.dataframe(df_norm_res.round(3), hide_index=True, use_container_width=True)
+
+    with col_layout2:
+        st.markdown("### 🏆 Hasil Perankingan Faktor Dominan")
+        ranking = saw.get_ranking()
+        st.dataframe(ranking.round(3), hide_index=True, use_container_width=True)
+        
+        best_alternative = ranking.iloc[0]['Alternatif']
+        best_score = ranking.iloc[0]['Score']
+        
+        st.success(f"⭐ **KESIMPULAN:** Kategori **{best_alternative}** menjadi kelompok paling rentan/kritis terhadap kecanduan dengan nilai akhir preferensi SAW sebesar **{best_score:.3f}**")
+        
+        fig = px.bar(ranking, x="Alternatif", y="Score", text_auto='.3f', color="Score", color_continuous_scale="Reds", template="plotly_dark")
+        st.plotly_chart(fig, use_container_width=True)
