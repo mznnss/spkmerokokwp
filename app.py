@@ -16,6 +16,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Inisialisasi session state untuk menampung simulasi data kuesioner mandiri
+if 'kuesioner_data' not in st.session_state:
+    st.session_state.kuesioner_data = pd.DataFrame(columns=[
+        "Nama Responden", "Psikologis", "Lingkungan", "Kebiasaan", "Ekonomi", "Ketergantungan", "Pengetahuan"
+    ])
+
 # =========================
 # CUSTOM CSS
 # =========================
@@ -90,10 +96,10 @@ menu = st.sidebar.radio(
 st.sidebar.markdown("---")
 st.sidebar.subheader("🔌 Sumber Data")
 
-# Pilihan Mode Data (Gabungan Fitur Asli & Simulasi)
+# Pilihan Mode Data (Gabungan Fitur Asli & Simulasi Slider & Simulasi Kuesioner)
 sumber_data = st.sidebar.radio(
     "Pilih Metode Input:",
-    ["Upload Excel Google Form", "Mode Simulasi (Slider)"]
+    ["Upload Excel Google Form", "Mode Simulasi (Slider)", "Mode Simulasi (Isi Kuesioner Form)"]
 )
 
 # Inisialisasi variabel utama
@@ -101,6 +107,14 @@ df = None
 criteria_scores = {}
 total_responden = 0
 siap_hitung = False
+
+mapping = {
+    "Sangat Tidak Setuju": 1,
+    "Tidak Setuju": 2,
+    "Netral": 3,
+    "Setuju": 4,
+    "Sangat Setuju": 5
+}
 
 # =========================
 # BOBOT
@@ -126,14 +140,6 @@ if sumber_data == "Upload Excel Google Form":
     if uploaded_file:
         df = pd.read_excel(uploaded_file)
         total_responden = len(df)
-        
-        mapping = {
-            "Sangat Tidak Setuju": 1,
-            "Tidak Setuju": 2,
-            "Netral": 3,
-            "Setuju": 4,
-            "Sangat Setuju": 5
-        }
         
         df_numeric = df.replace(mapping)
         
@@ -164,7 +170,7 @@ if sumber_data == "Upload Excel Google Form":
 # =========================
 # KONDISI 2: MODE SIMULASI SLIDER
 # =========================
-else:
+elif sumber_data == "Mode Simulasi (Slider)":
     st.sidebar.markdown("**Geser nilai kriteria (Skala 1-5):**")
     sim_psikologis = st.sidebar.slider("🧠 Faktor Psikologis", 1.0, 5.0, 3.5, 0.1)
     sim_lingkungan = st.sidebar.slider("👥 Faktor Lingkungan", 1.0, 5.0, 4.0, 0.1)
@@ -181,8 +187,67 @@ else:
         "Ketergantungan": sim_ketergantungan,
         "Pengetahuan": sim_pengetahuan
     }
-    total_responden = "Simulasi (1 User)"
+    total_responden = "Simulasi Kontrol Slider"
     siap_hitung = True
+
+# =========================
+# KONDISI 3: MODE SIMULASI ISI KUESIONER FORM
+# =========================
+else:
+    st.subheader("📝 Form Simulasi Pengisian Kuesioner")
+    
+    # Formulir Kuesioner Internal
+    with st.form(key="kuesioner_form", clear_on_submit=True):
+        nama = st.text_input("Nama Responden", value=f"Responden {len(st.session_state.kuesioner_data) + 1}")
+        
+        options = ["Sangat Tidak Setuju", "Tidak Setuju", "Netral", "Setuju", "Sangat Setuju"]
+        
+        q1 = st.radio("1. Apakah Anda merokok atau menambah porsi rokok saat merasa stres/tertekan? (Psikologis)", options, index=3, horizontal=True)
+        q2 = st.radio("2. Apakah Anda sulit menolak merokok jika berada di lingkungan teman-teman perokok? (Lingkungan)", options, index=3, horizontal=True)
+        q3 = st.radio("3. Apakah merokok setelah makan sudah menjadi rutinitas wajib yang sulit ditinggalkan? (Kebiasaan)", options, index=4, horizontal=True)
+        q4 = st.radio("4. Apakah rokok saat ini harganya murah dan sangat mudah didapat di sekitar Anda? (Ekonomi)", options, index=3, horizontal=True)
+        q5 = st.radio("5. Apakah Anda merasa selalu ingin merokok kembali dan gelisah jika belum merokok? (Ketergantungan)", options, index=2, horizontal=True)
+        q6 = st.radio("6. Apakah Anda tetap merokok meskipun tahu info bahaya rokok bagi kesehatan? (Pengetahuan)", options, index=3, horizontal=True)
+        
+        submit_btn = st.form_submit_button(label="💾 Kirim Jawaban Kuesioner")
+        
+        if submit_btn:
+            new_row = {
+                "Nama Responden": nama,
+                "Psikologis": mapping[q1],
+                "Lingkungan": mapping[q2],
+                "Kebiasaan": mapping[q3],
+                "Ekonomi": mapping[q4],
+                "Ketergantungan": mapping[q5],
+                "Pengetahuan": mapping[q6]
+            }
+            # Tambahkan baris data responden baru ke session state
+            st.session_state.kuesioner_data = pd.concat([st.session_state.kuesioner_data, pd.DataFrame([new_row])], ignore_index=True)
+            st.toast(f"Berhasil menyimpan data {nama}!", icon="✅")
+            st.rerun()
+
+    # Tombol Reset Data Form
+    if len(st.session_state.kuesioner_data) > 0:
+        if st.button("🗑️ Reset/Hapus Semua Responden Form"):
+            st.session_state.kuesioner_data = pd.DataFrame(columns=["Nama Responden", "Psikologis", "Lingkungan", "Kebiasaan", "Ekonomi", "Ketergantungan", "Pengetahuan"])
+            st.rerun()
+
+    # Hitung rata-rata kuesioner dari data yang telah dikumpulkan
+    if not st.session_state.kuesioner_data.empty:
+        df = st.session_state.kuesioner_data
+        total_responden = len(df)
+        
+        criteria_scores = {
+            "Psikologis": df["Psikologis"].mean(),
+            "Lingkungan": df["Lingkungan"].mean(),
+            "Kebiasaan": df["Kebiasaan"].mean(),
+            "Ekonomi": df["Ekonomi"].mean(),
+            "Ketergantungan": df["Ketergantungan"].mean(),
+            "Pengetahuan": df["Pengetahuan"].mean()
+        }
+        siap_hitung = True
+    else:
+        st.warning("⚠️ Belum ada data kuesioner yang diisi. Silakan isi form di atas dan klik 'Kirim Jawaban Kuesioner'.")
 
 # =========================
 # PEMROSESAN METODE SAW
@@ -272,11 +337,11 @@ if siap_hitung:
     # =========================
     elif menu == "Analisis SAW":
         if df is not None:
-            st.subheader("📄 Data Responden (Excel)")
+            st.subheader("📄 Data Responden")
             st.dataframe(df)
         else:
             st.subheader("📄 Data Responden")
-            st.info("Mode Simulasi Aktif: Data mentah tabel excel kuesioner tidak dimuat.")
+            st.info("Mode Simulasi Slider Aktif: Data mentah tabel individual tidak dimuat.")
             
         st.subheader("📊 Nilai Rata-rata Faktor")
         st.dataframe(criteria_df)
@@ -393,7 +458,7 @@ if siap_hitung:
         menggunakan metode Simple Additive Weighting (SAW).
         
         ### Fitur:
-        - Mode Fleksibel (Upload Excel Google Form / Mode Input Simulasi Slider)
+        - Mode Fleksibel (Upload Excel Google Form / Mode Input Simulasi Slider / Mode Simulasi Kuesioner Form)
         - Perhitungan otomatis metode SAW
         - Dashboard interaktif
         - Grafik visualisasi
