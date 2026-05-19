@@ -14,51 +14,51 @@ st.set_page_config(
 # =========================================================================
 class SAWMethod:
     def __init__(self, data: pd.DataFrame, weights: List[float], criteria_type: List[str]):
-        """Inisialisasi metode SAW sesuai modul [cite: 90, 91]"""
-        self.data = data.copy() [cite: 96]
-        self.weights = np.array(weights) [cite: 97]
-        self.criteria_type = criteria_type [cite: 98]
-        self.normalized_data = None [cite: 99]
-        self.scores = None [cite: 100]
+        """Inisialisasi metode SAW sesuai modul"""
+        self.data = data.copy()
+        self.weights = np.array(weights)
+        self.criteria_type = criteria_type
+        self.normalized_data = None
+        self.scores = None
 
     def normalize_matrix(self) -> pd.DataFrame:
-        """Normalisasi matriks keputusan sesuai modul [cite: 101, 102]"""
-        normalized_data = self.data.copy() [cite: 103]
-        for i, col in enumerate(self.data.columns[1:]):  # Skip kolom alternatif [cite: 104]
-            if self.criteria_type[i] == 'benefit': [cite: 105]
-                max_val = self.data[col].max() [cite: 108]
-                if max_val == 0:  [cite: 109]
-                    normalized_data[col] = 0 [cite: 110]
-                else: [cite: 111]
-                    normalized_data[col] = self.data[col] / max_val [cite: 112]
-            else: # cost [cite: 113]
-                min_val = self.data[col].min() [cite: 115]
-                normalized_data[col] = np.where( [cite: 117]
-                    self.data[col] != 0, [cite: 119]
-                    min_val / self.data[col], [cite: 120]
-                    0 [cite: 121]
+        """Normalisasi matriks keputusan sesuai modul"""
+        normalized_data = self.data.copy()
+        for i, col in enumerate(self.data.columns[1:]):  # Skip kolom alternatif
+            if self.criteria_type[i] == 'benefit':
+                max_val = self.data[col].max()
+                if max_val == 0: 
+                    normalized_data[col] = 0
+                else:
+                    normalized_data[col] = self.data[col] / max_val
+            else: # cost
+                min_val = self.data[col].min()
+                normalized_data[col] = np.where(
+                    self.data[col] != 0,
+                    min_val / self.data[col],
+                    0
                 )
-        self.normalized_data = normalized_data [cite: 122]
-        return normalized_data [cite: 123]
+        self.normalized_data = normalized_data
+        return normalized_data
 
     def calculate_scores(self) -> pd.DataFrame:
-        """Hitung skor akhir dan ranking sesuai modul [cite: 124, 125]"""
-        if self.normalized_data is None: [cite: 126]
-            self.normalize_matrix() [cite: 127]
-        criteria_columns = self.normalized_data.columns[1:] [cite: 129]
-        weighted_scores = self.normalized_data[criteria_columns] * self.weights [cite: 130]
-        self.normalized_data['Score'] = weighted_scores.sum(axis=1) [cite: 132]
-        self.normalized_data['Rank'] = self.normalized_data['Score'].rank(ascending=False, method='min').astype(int) [cite: 134]
-        return self.normalized_data [cite: 135]
+        """Hitung skor akhir dan ranking sesuai modul"""
+        if self.normalized_data is None:
+            self.normalize_matrix()
+        criteria_columns = self.normalized_data.columns[1:]
+        weighted_scores = self.normalized_data[criteria_columns] * self.weights
+        self.normalized_data['Score'] = weighted_scores.sum(axis=1)
+        self.normalized_data['Rank'] = self.normalized_data['Score'].rank(ascending=False, method='min').astype(int)
+        return self.normalized_data
 
     def get_ranking(self) -> pd.DataFrame:
-        """Dapatkan hasil ranking sesuai modul [cite: 136, 137]"""
-        if self.scores is None: [cite: 138]
-            self.scores = self.calculate_scores() [cite: 139]
-        alt_column = self.scores.columns[0] [cite: 141]
-        result = self.scores[[alt_column, 'Score', 'Rank']].sort_values('Rank') [cite: 142]
-        result = result.rename(columns={alt_column: 'Alternatif'}) [cite: 143]
-        return result [cite: 144]
+        """Dapatkan hasil ranking sesuai modul"""
+        if self.scores is None:
+            self.scores = self.calculate_scores()
+        alt_column = self.scores.columns[0]
+        result = self.scores[[alt_column, 'Score', 'Rank']].sort_values('Rank')
+        result = result.rename(columns={alt_column: 'Alternatif'})
+        return result
 
 # =========================================================================
 # INTERMUKA STREAMLIT
@@ -117,9 +117,9 @@ if uploaded_file:
         hitung_rata_kriteria(w_pengetahuan)
     ]
     
-    # Validasi & Normalisasi bobot otomatis agar total keseluruhan bernilai 1.0 (Sesuai Modul baris 293-299) 
+    # Validasi & Normalisasi bobot otomatis agar total keseluruhan bernilai 1.0 (Sesuai Modul)
     total_raw = sum(raw_scores)
-    weights = [score / total_raw for score in raw_scores] [cite: 298]
+    weights = [score / total_raw for score in raw_scores]
     
     st.sidebar.success(f"✅ Berhasil memproses & memfilter bobot dari {len(df_bobot_mentah)} responden Google Form!")
 else:
@@ -145,14 +145,14 @@ default_alternatif = {
 }
 df_alternatif = pd.DataFrame(default_alternatif)
 
-# Komponen data_editor agar pengguna bisa melakukan input manual/mengubah data (Simulasi) 
+# Komponen data_editor agar pengguna bisa melakukan input manual/mengubah data (Simulasi)
 matrix_data = st.data_editor(df_alternatif, hide_index=True, use_container_width=True)
 
 # -------------------------------------------------------------------------
 # 3. PROSES KALKULASI & OUTPUT EVALUASI METODE SAW MURNI DARI MODUL
 # -------------------------------------------------------------------------
 if matrix_data is not None and len(weights) > 0:
-    # Mengirimkan data simulasi dan bobot terfilter ke Class SAWMethod bawaan modul 
+    # Mengirimkan data simulasi dan bobot terfilter ke Class SAWMethod bawaan modul
     saw = SAWMethod(matrix_data, weights, criteria_type)
     
     col_layout1, col_layout2 = st.columns(2)
@@ -161,29 +161,29 @@ if matrix_data is not None and len(weights) > 0:
         st.markdown("### 📋 Parameter Kriteria Hasil Filter Kuesioner")
         df_parameter = pd.DataFrame({
             "Kriteria": nama_kriteria,
-            "Bobot Preferensi (W)": saw.weights, [cite: 157]
-            "Tipe Atribut": saw.criteria_type [cite: 158]
+            "Bobot Preferensi (W)": saw.weights,
+            "Tipe Atribut": saw.criteria_type
         })
         st.dataframe(df_parameter, hide_index=True, use_container_width=True)
         
         st.markdown("### ⚙️ Matriks Hasil Normalisasi (Output Rumus Modul)")
         # Pemanggilan fungsi normalisasi bawaan modul
-        df_norm_res = saw.normalize_matrix() [cite: 127]
-        st.dataframe(df_norm_res.round(4), hide_index=True, use_container_width=True) [cite: 164]
+        df_norm_res = saw.normalize_matrix()
+        st.dataframe(df_norm_res.round(4), hide_index=True, use_container_width=True)
 
     with col_layout2:
         st.markdown("### 🏆 Hasil Akhir Perankingan Kategori Alternatif")
         # Pemanggilan fungsi ranking bawaan modul
-        ranking = saw.get_ranking() [cite: 170]
-        st.dataframe(ranking.round(4), hide_index=True, use_container_width=True) [cite: 173]
+        ranking = saw.get_ranking()
+        st.dataframe(ranking.round(4), hide_index=True, use_container_width=True)
         
-        # Penentuan alternatif terbaik mengacu baris 176-180 modul [cite: 176, 177]
-        best_alternative = ranking.iloc[0]['Alternatif'] [cite: 176]
-        best_score = ranking.iloc[0]['Score'] [cite: 177]
+        # Penentuan alternatif terbaik mengacu pada modul
+        best_alternative = ranking.iloc[0]['Alternatif']
+        best_score = ranking.iloc[0]['Score']
         
-        st.success(f"⭐ **KESIMPULAN:** Kategori **{best_alternative}** menjadi kelompok paling dominan memicu tingkat kecanduan dengan total pencapaian nilai akhir SAW sebesar **{best_score:.4f}**") [cite: 178, 180]
+        st.success(f"⭐ **KESIMPULAN:** Kategori **{best_alternative}** menjadi kelompok paling dominan memicu tingkat kecanduan dengan total pencapaian nilai akhir SAW sebesar **{best_score:.4f}**")
         
-        # Visualisasi tambahan berupa grafik batang untuk memperkuat presentasi hasil [cite: 78]
+        # Visualisasi tambahan berupa grafik berat untuk memperkuat presentasi hasil
         import plotly.express as px
         fig = px.bar(ranking, x="Alternatif", y="Score", text_auto='.4f', color="Score", color_continuous_scale="Reds", template="plotly_dark")
         st.plotly_chart(fig, use_container_width=True)
