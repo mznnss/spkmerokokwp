@@ -9,6 +9,12 @@ st.set_page_config(
     layout="wide"
 )
 
+# Inisialisasi session state untuk menampung data kuesioner bobot simulasi
+if 'kuesioner_bobot_data' not in st.session_state:
+    st.session_state.kuesioner_bobot_data = pd.DataFrame(columns=[
+        "Nama Penilai", "Psikologis (Stres)", "Lingkungan (Teman)", "Kebiasaan (Rutinitas)", "Ekonomi (Harga)", "Ketergantungan (Nikotin)", "Pengetahuan (Bahaya)"
+    ])
+
 # =========================================================================
 # CLASS MURNI DARI MODUL (Logika Perhitungan Dipertahankan 100%)
 # =========================================================================
@@ -64,17 +70,16 @@ class SAWMethod:
 # INTERMUKA STREAMLIT
 # =========================================================================
 st.title("🚭 SPK - METODE SAW (Simple Additive Weighting)")
-st.caption("Modul Terintegrasi: Pengolah Bobot via Filter Excel Google Form & Simulasi Matriks Keputusan")
+st.caption("Modul Terintegrasi: Simulasi Kuesioner Form Pembobotan & Engine Perhitungan Murni dari Modul")
 st.markdown("---")
 
 # -------------------------------------------------------------------------
-# PILIHAN SIDEBAR: 1. FILTER BOBOT DARI EXCEL GOOGLE FORM
+# PILIHAN SIDEBAR: METODE INPUT BOBOT
 # -------------------------------------------------------------------------
-st.sidebar.title("🔌 Filter Bobot Kriteria")
-st.sidebar.markdown("Upload file hasil Google Form penilaian tingkat kepentingan kriteria oleh pakar/koresponden:")
-uploaded_file = st.sidebar.file_uploader(
-    "📂 Upload Excel Kuesioner Bobot",
-    type=["xlsx", "xls"]
+st.sidebar.title("🔌 Filter & Simulasi Bobot")
+sumber_bobot = st.sidebar.radio(
+    "Pilih Metode Penentuan Bobot:",
+    ["Upload Excel Google Form", "Mode Simulasi (Isi Kuesioner Form)"]
 )
 
 # Parameter Kriteria Tetap
@@ -88,13 +93,71 @@ mapping_likert = {
 }
 
 weights = []
+df_bobot_aktif = pd.DataFrame()
 
-if uploaded_file:
-    # Membaca data kuesioner bobot
-    df_bobot_mentah = pd.read_excel(uploaded_file)
-    df_bobot_numeric = df_bobot_mentah.replace(mapping_likert)
+# =========================================================================
+# KONDISI SIDEBAR 1: UPLOAD FILE EXCEL
+# =========================================================================
+if sumber_bobot == "Upload Excel Google Form":
+    uploaded_file = st.sidebar.file_uploader("📂 Upload Excel Kuesioner Bobot", type=["xlsx", "xls"])
     
-    # Proses Filter Otomatis Kolom Berdasarkan Kata Kunci (Keyword Filtering)
+    if uploaded_file:
+        df_bobot_aktif = pd.read_excel(uploaded_file)
+        st.sidebar.success(f"✅ Berhasil memuat {len(df_bobot_aktif)} data dari Excel!")
+    else:
+        st.sidebar.info("ℹ️ Silakan upload file Excel di atas.")
+
+# =========================================================================
+# KONDISI SIDEBAR 2: SIMULASI ISI FORM KUESIONER LANGSUNG DI APP
+# =========================================================================
+else:
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 📝 Form Kuesioner Simulasi")
+    
+    with st.sidebar.form(key="form_simulasi_bobot", clear_on_submit=True):
+        nama_pakar = st.text_input("Nama Penilai/Pakar", value=f"Pakar {len(st.session_state.kuesioner_bobot_data) + 1}")
+        options = ["Sangat Tidak Penting", "Tidak Penting", "Cukup Penting", "Penting", "Sangat Penting"]
+        
+        # Penulisan soal kuesioner sengaja menyisipkan kata kunci agar lolos filter
+        q1 = st.select_slider("1. Seberapa penting faktor emosi/stres memicu merokok?", options=options, value="Penting")
+        q2 = st.select_slider("2. Seberapa penting pengaruh teman dan lingkungan?", options=options, value="Sangat Penting")
+        q3 = st.select_slider("3. Seberapa penting rutinitas/kebiasaan setelah makan?", options=options, value="Penting")
+        q4 = st.select_slider("4. Seberapa penting faktor harga rokok murah (ekonomi)?", options=options, value="Cukup Penting")
+        q5 = st.select_slider("5. Seberapa penting tingkat ketergantungan zat nikotin?", options=options, value="Penting")
+        q6 = st.select_slider("6. Seberapa penting info bahaya rokok (pengetahuan)?", options=options, value="Tidak Penting")
+        
+        submit_btn = st.form_submit_button(label="💾 Simpan Jawaban Pakar")
+        
+        if submit_btn:
+            new_row = {
+                "Nama Penilai": nama_pakar,
+                "Psikologis (Stres)": q1,
+                "Lingkungan (Teman)": q2,
+                "Kebiasaan (Rutinitas)": q3,
+                "Ekonomi (Harga)": q4,
+                "Ketergantungan (Nikotin)": q5,
+                "Pengetahuan (Bahaya)": q6
+            }
+            st.session_state.kuesioner_bobot_data = pd.concat([st.session_state.kuesioner_bobot_data, pd.DataFrame([new_row])], ignore_index=True)
+            st.rerun()
+
+    if len(st.session_state.kuesioner_bobot_data) > 0:
+        df_bobot_aktif = st.session_state.kuesioner_bobot_data
+        if st.sidebar.button("🗑️ Reset Semua Data Pakar"):
+            st.session_state.kuesioner_bobot_data = pd.DataFrame(columns=["Nama Penilai", "Psikologis (Stres)", "Lingkungan (Teman)", "Kebiasaan (Rutinitas)", "Ekonomi (Harga)", "Ketergantungan (Nikotin)", "Pengetahuan (Bahaya)"])
+            st.rerun()
+
+# =========================================================================
+# PROSES PEMFILTERAN OTOMATIS DATA BOBOT (EXCEL MAUPUN FORM SIMULASI)
+# =========================================================================
+if not df_bobot_aktif.empty:
+    st.subheader("📄 1. Hasil Pengumpulan Kuesioner Bobot Penilai")
+    st.dataframe(df_bobot_aktif, use_container_width=True)
+    
+    # Ganti jawaban teks dengan angka skala 1-5
+    df_bobot_numeric = df_bobot_aktif.replace(mapping_likert)
+    
+    # Logika filter otomatis berbasis kata kunci (Sama seperti filter file excel)
     w_psikologis = [col for col in df_bobot_numeric.columns if "psikologis" in col.lower() or "stres" in col.lower()]
     w_lingkungan = [col for col in df_bobot_numeric.columns if "lingkungan" in col.lower() or "teman" in col.lower()]
     w_kebiasaan = [col for col in df_bobot_numeric.columns if "kebiasaan" in col.lower() or "rutinitas" in col.lower()]
@@ -105,9 +168,8 @@ if uploaded_file:
     def hitung_rata_kriteria(cols):
         if len(cols) > 0:
             return df_bobot_numeric[cols].astype(float).mean().mean()
-        return 3.0 # Nilai default jika kolom tidak tersaring
+        return 3.0
         
-    # Mengambil nilai rata-rata mentah (skala 1-5) dari koresponden
     raw_scores = [
         hitung_rata_kriteria(w_psikologis),
         hitung_rata_kriteria(w_lingkungan),
@@ -117,23 +179,20 @@ if uploaded_file:
         hitung_rata_kriteria(w_pengetahuan)
     ]
     
-    # Validasi & Normalisasi bobot otomatis agar total keseluruhan bernilai 1.0 (Sesuai Modul)
+    # Normalisasi bobot otomatis agar total akumulasi bernilai 1.0 (Sesuai Syarat Modul)
     total_raw = sum(raw_scores)
     weights = [score / total_raw for score in raw_scores]
-    
-    st.sidebar.success(f"✅ Berhasil memproses & memfilter bobot dari {len(df_bobot_mentah)} responden Google Form!")
 else:
-    # Menggunakan bobot default jika file belum diunggah untuk keperluan simulasi awal
+    # Bobot default bawaan jika data aktif masih kosong
     weights = [0.15, 0.25, 0.20, 0.25, 0.10, 0.05]
-    st.sidebar.info("ℹ️ Menggunakan bobot preferensi bawaan. Silakan upload file kuesioner di atas untuk menyaring bobot baru.")
+    st.warning("⚠️ Belum ada data kuesioner masuk. Menggunakan bobot *default* bawaan sistem untuk sementara. Silakan isi form simulasi di sidebar kuesioner atau upload file Excel!")
 
 # -------------------------------------------------------------------------
-# 2. HALAMAN UTAMA: SIMULASI INPUT MATRIKS KEPUTUSAN KELOMPOK PEROKOK
+# 2. HALAMAN UTAMA: SIMULASI MATRIKS KEPUTUSAN KELOMPOK PEROKOK (ALTERNATIF)
 # -------------------------------------------------------------------------
-st.subheader("📊 Matriks Keputusan Kelompok Perokok (Alternatif)")
-st.markdown("Silakan simulasikan nilai evaluasi kelompok perokok (Skala 1-5) secara langsung pada tabel interaktif di bawah ini:")
+st.subheader("📊 2. Matriks Keputusan Kelompok Perokok (Alternatif)")
+st.markdown("Kamu bisa mengubah nilai matriks keputusan kelompok alternatif di bawah ini untuk melihat efek perhitungannya:")
 
-# Alternatif disesuaikan dengan objek penelitian kecanduan rokok kelompok
 default_alternatif = {
     'Alternatif': ['Perokok Ringan (1-4 btg/hari)', 'Perokok Sedang (5-14 btg/hari)', 'Perokok Berat (>15 btg/hari)'],
     'Psikologis': [3.0, 4.0, 5.0],
@@ -144,21 +203,19 @@ default_alternatif = {
     'Pengetahuan': [4.5, 3.0, 1.5]
 }
 df_alternatif = pd.DataFrame(default_alternatif)
-
-# Komponen data_editor agar pengguna bisa melakukan input manual/mengubah data (Simulasi)
 matrix_data = st.data_editor(df_alternatif, hide_index=True, use_container_width=True)
 
 # -------------------------------------------------------------------------
-# 3. PROSES KALKULASI & OUTPUT EVALUASI METODE SAW MURNI DARI MODUL
+# 3. PROSES KALKULASI ENGINE SAW BERBASIS CLASS MODUL MURNI
 # -------------------------------------------------------------------------
 if matrix_data is not None and len(weights) > 0:
-    # Mengirimkan data simulasi dan bobot terfilter ke Class SAWMethod bawaan modul
+    # Memasukkan bobot hasil filter kuesioner dan matriks keputusan ke Class Modul
     saw = SAWMethod(matrix_data, weights, criteria_type)
     
     col_layout1, col_layout2 = st.columns(2)
     
     with col_layout1:
-        st.markdown("### 📋 Parameter Kriteria Hasil Filter Kuesioner")
+        st.markdown("### 📋 Parameter Atribut & Hasil Bobot Filter Kuesioner")
         df_parameter = pd.DataFrame({
             "Kriteria": nama_kriteria,
             "Bobot Preferensi (W)": saw.weights,
@@ -167,23 +224,19 @@ if matrix_data is not None and len(weights) > 0:
         st.dataframe(df_parameter, hide_index=True, use_container_width=True)
         
         st.markdown("### ⚙️ Matriks Hasil Normalisasi (Output Rumus Modul)")
-        # Pemanggilan fungsi normalisasi bawaan modul
         df_norm_res = saw.normalize_matrix()
         st.dataframe(df_norm_res.round(4), hide_index=True, use_container_width=True)
 
     with col_layout2:
         st.markdown("### 🏆 Hasil Akhir Perankingan Kategori Alternatif")
-        # Pemanggilan fungsi ranking bawaan modul
         ranking = saw.get_ranking()
         st.dataframe(ranking.round(4), hide_index=True, use_container_width=True)
         
-        # Penentuan alternatif terbaik mengacu pada modul
         best_alternative = ranking.iloc[0]['Alternatif']
         best_score = ranking.iloc[0]['Score']
         
         st.success(f"⭐ **KESIMPULAN:** Kategori **{best_alternative}** menjadi kelompok paling dominan memicu tingkat kecanduan dengan total pencapaian nilai akhir SAW sebesar **{best_score:.4f}**")
         
-        # Visualisasi tambahan berupa grafik berat untuk memperkuat presentasi hasil
-        import plotly.express as px
+        # Grafik batang interaktif
         fig = px.bar(ranking, x="Alternatif", y="Score", text_auto='.4f', color="Score", color_continuous_scale="Reds", template="plotly_dark")
         st.plotly_chart(fig, use_container_width=True)
