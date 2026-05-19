@@ -10,12 +10,12 @@ st.set_page_config(
     layout="wide"
 )
 
-# Inisialisasi session state untuk menampung data kuesioner bobot simulasi
+# Inisialisasi session state dengan nama kolom terstandarisasi C1 - C9
 if 'kuesioner_bobot_data' not in st.session_state:
     st.session_state.kuesioner_bobot_data = pd.DataFrame(columns=[
-        "Nama Penilai", "Psikologis (Stres)", "Lingkungan (Teman)", "Kebiasaan (Rutinitas)", 
-        "Ekonomi (Harga)", "Ketergantungan (Nikotin)", "Intensitas (Jumlah)", 
-        "Efek Sosial (Gaya)", "Kondisi Fisik (Sakit)", "Pengetahuan (Bahaya)"
+        "Nama Penilai", "C1_Psikologis", "C2_Lingkungan", "C3_Kebiasaan", 
+        "C4_Ketergantungan", "C5_Intensitas", "C6_Efek_Sosial", 
+        "C7_Kondisi_Fisik", "C8_Ekonomi", "C9_Pengetahuan"
     ])
 
 # =========================================================================
@@ -75,16 +75,16 @@ st.caption("Modul Terintegrasi: Filter Bobot Kuesioner Interaktif & Engine Perhi
 st.markdown("---")
 
 # -------------------------------------------------------------------------
-# SIDEBAR: PANEL FORM KUESIONER BOBOT (Filter Google Form Berbasis Kata Kunci)
+# SIDEBAR: PANEL FORM KUESIONER BOBOT
 # -------------------------------------------------------------------------
 st.sidebar.title("🔌 Filter & Simulasi Bobot Pakar")
-st.sidebar.markdown("Masukkan penilaian pakar untuk menentukan bobot kriteria ($W$). Sistem akan memfilter kata kunci secara otomatis.")
+st.sidebar.markdown("Masukkan penilaian pakar untuk menentukan bobot kriteria ($W$).")
 
 with st.sidebar.form(key="form_simulasi_bobot", clear_on_submit=True):
     nama_pakar = st.text_input("Nama Penilai/Pakar", value=f"Pakar {len(st.session_state.kuesioner_bobot_data) + 1}")
     options = ["Sangat Tidak Penting", "Tidak Penting", "Cukup Penting", "Penting", "Sangat Penting"]
     
-    # Kuesioner dirancang 9 kriteria agar strukturnya sama kaya Makalah Laptop UNPAM (C1 - C9)
+    # 9 Kriteria sinkron dengan struktur C1 - C9 Makalah Laptop UNPAM
     q1 = st.selectbox("C1. Tingkat Emosi/Stres (Psikologis)", options=options, index=3)
     q2 = st.selectbox("C2. Pengaruh Teman Sebaya (Lingkungan)", options=options, index=4)
     q3 = st.selectbox("C3. Efek Setelah Makan (Kebiasaan)", options=options, index=3)
@@ -99,9 +99,10 @@ with st.sidebar.form(key="form_simulasi_bobot", clear_on_submit=True):
     
     if submit_btn:
         new_row = {
-            "Nama Penilai": nama_pakar, "Psikologis (Stres)": q1, "Lingkungan (Teman)": q2, "Kebiasaan (Rutinitas)": q3,
-            "Ketergantungan (Nikotin)": q4, "Intensitas (Jumlah)": q5, "Efek Sosial (Gaya)": q6, 
-            "Kondisi Fisik (Sakit)": q7, "Ekonomi (Harga)": q8, "Pengetahuan (Bahaya)": q9
+            "Nama Penilai": nama_pakar, 
+            "C1_Psikologis": q1, "C2_Lingkungan": q2, "C3_Kebiasaan": q3,
+            "C4_Ketergantungan": q4, "C5_Intensitas": q5, "C6_Efek_Sosial": q6, 
+            "C7_Kondisi_Fisik": q7, "C8_Ekonomi": q8, "C9_Pengetahuan": q9
         }
         st.session_state.kuesioner_bobot_data = pd.concat([st.session_state.kuesioner_bobot_data, pd.DataFrame([new_row])], ignore_index=True)
         st.rerun()
@@ -109,9 +110,9 @@ with st.sidebar.form(key="form_simulasi_bobot", clear_on_submit=True):
 if len(st.session_state.kuesioner_bobot_data) > 0:
     if st.sidebar.button("🗑️ Reset Semua Data Pakar"):
         st.session_state.kuesioner_bobot_data = pd.DataFrame(columns=[
-            "Nama Penilai", "Psikologis (Stres)", "Lingkungan (Teman)", "Kebiasaan (Rutinitas)", 
-            "Ekonomi (Harga)", "Ketergantungan (Nikotin)", "Intensitas (Jumlah)", 
-            "Efek Sosial (Gaya)", "Kondisi Fisik (Sakit)", "Pengetahuan (Bahaya)"
+            "Nama Penilai", "C1_Psikologis", "C2_Lingkungan", "C3_Kebiasaan", 
+            "C4_Ketergantungan", "C5_Intensitas", "C6_Efek_Sosial", 
+            "C7_Kondisi_Fisik", "C8_Ekonomi", "C9_Pengetahuan"
         ])
         st.rerun()
 
@@ -128,23 +129,24 @@ if not st.session_state.kuesioner_bobot_data.empty:
     
     df_bobot_numeric = st.session_state.kuesioner_bobot_data.replace(mapping_likert)
     
-    # Filter berbasis kata kunci sesuai keinginan awalmu (Mencari teks di dalam header kolom)
+    # Perbaikan Filter kata kunci agar memetakan kolom C1-C9 secara berurutan dan akurat
     w_cols = [
-        [c for c in df_bobot_numeric.columns if "psikologis" in c.lower() or "stres" in c.lower()],
-        [c for c in df_bobot_numeric.columns if "lingkungan" in c.lower() or "teman" in c.lower()],
-        [c for c in df_bobot_numeric.columns if "kebiasaan" in c.lower() or "rutinitas" in c.lower()],
-        [c for c in df_bobot_numeric.columns if "ketergantungan" in c.lower() or "nikotin" in c.lower()],
-        [c for c in df_bobot_numeric.columns if "intensitas" in c.lower() or "jumlah" in c.lower()],
-        [c for c in df_bobot_numeric.columns if "sosial" in c.lower() or "gaya" in c.lower()],
-        [c for c in df_bobot_numeric.columns if "fisik" in c.lower() or "sakit" in c.lower()],
-        [c for c in df_bobot_numeric.columns if "ekonomi" in c.lower() or "harga" in c.lower()],
-        [c for c in df_bobot_numeric.columns if "pengetahuan" in c.lower() or "bahaya" in c.lower()]
+        [c for c in df_bobot_numeric.columns if "psikologis" in c.lower() or "c1" in c.lower()],
+        [c for c in df_bobot_numeric.columns if "lingkungan" in c.lower() or "c2" in c.lower()],
+        [c for c in df_bobot_numeric.columns if "kebiasaan" in c.lower() or "c3" in c.lower()],
+        [c for c in df_bobot_numeric.columns if "ketergantungan" in c.lower() or "c4" in c.lower()],
+        [c for c in df_bobot_numeric.columns if "intensitas" in c.lower() or "c5" in c.lower()],
+        [c for c in df_bobot_numeric.columns if "sosial" in c.lower() or "c6" in c.lower()],
+        [c for c in df_bobot_numeric.columns if "fisik" in c.lower() or "c7" in c.lower()],
+        [c for c in df_bobot_numeric.columns if "ekonomi" in c.lower() or "c8" in c.lower()],
+        [c for c in df_bobot_numeric.columns if "pengetahuan" in c.lower() or "c9" in c.lower()]
     ]
     
     raw_scores = [df_bobot_numeric[cols].astype(float).mean().mean() if len(cols) > 0 else 3.0 for cols in w_cols]
     total_raw = sum(raw_scores)
     weights = [score / total_raw for score in raw_scores]
 else:
+    # Default bobot awal kuesioner UNPAM (Total = 1.0)
     weights = [0.15, 0.15, 0.12, 0.10, 0.08, 0.08, 0.07, 0.10, 0.15]
     st.info("ℹ️ Belum ada data pakar diisi. Menggunakan parameter bobot default kuesioner UNPAM.")
 
