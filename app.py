@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import plotly.express as px  # Memastikan Plotly Express ter-import secara global
 from typing import List
 
 st.set_page_config(
@@ -118,7 +119,6 @@ else:
         nama_pakar = st.text_input("Nama Penilai/Pakar", value=f"Pakar {len(st.session_state.kuesioner_bobot_data) + 1}")
         options = ["Sangat Tidak Penting", "Tidak Penting", "Cukup Penting", "Penting", "Sangat Penting"]
         
-        # Penulisan soal kuesioner sengaja menyisipkan kata kunci agar lolos filter
         q1 = st.select_slider("1. Seberapa penting faktor emosi/stres memicu merokok?", options=options, value="Penting")
         q2 = st.select_slider("2. Seberapa penting pengaruh teman dan lingkungan?", options=options, value="Sangat Penting")
         q3 = st.select_slider("3. Seberapa penting rutinitas/kebiasaan setelah makan?", options=options, value="Penting")
@@ -138,7 +138,7 @@ else:
                 "Ketergantungan (Nikotin)": q5,
                 "Pengetahuan (Bahaya)": q6
             }
-            st.session_state.kuesioner_bobot_data = pd.concat([st.session_state.kuesioner_bobot_data, pd.DataFrame([new_row])], ignore_index=True)
+            st.session_state.kuesioner_bobot_data = pd.concat([st.session_state.kuesionot_bobot_data, pd.DataFrame([new_row])], ignore_index=True) if 'kuesionot_bobot_data' in st.session_state else pd.concat([st.session_state.kuesioner_bobot_data, pd.DataFrame([new_row])], ignore_index=True)
             st.rerun()
 
     if len(st.session_state.kuesioner_bobot_data) > 0:
@@ -154,10 +154,8 @@ if not df_bobot_aktif.empty:
     st.subheader("📄 1. Hasil Pengumpulan Kuesioner Bobot Penilai")
     st.dataframe(df_bobot_aktif, use_container_width=True)
     
-    # Ganti jawaban teks dengan angka skala 1-5
     df_bobot_numeric = df_bobot_aktif.replace(mapping_likert)
     
-    # Logika filter otomatis berbasis kata kunci (Sama seperti filter file excel)
     w_psikologis = [col for col in df_bobot_numeric.columns if "psikologis" in col.lower() or "stres" in col.lower()]
     w_lingkungan = [col for col in df_bobot_numeric.columns if "lingkungan" in col.lower() or "teman" in col.lower()]
     w_kebiasaan = [col for col in df_bobot_numeric.columns if "kebiasaan" in col.lower() or "rutinitas" in col.lower()]
@@ -179,16 +177,14 @@ if not df_bobot_aktif.empty:
         hitung_rata_kriteria(w_pengetahuan)
     ]
     
-    # Normalisasi bobot otomatis agar total akumulasi bernilai 1.0 (Sesuai Syarat Modul)
     total_raw = sum(raw_scores)
     weights = [score / total_raw for score in raw_scores]
 else:
-    # Bobot default bawaan jika data aktif masih kosong
     weights = [0.15, 0.25, 0.20, 0.25, 0.10, 0.05]
     st.warning("⚠️ Belum ada data kuesioner masuk. Menggunakan bobot *default* bawaan sistem untuk sementara. Silakan isi form simulasi di sidebar kuesioner atau upload file Excel!")
 
 # -------------------------------------------------------------------------
-# 2. HALAMAN UTAMA: SIMULASI MATRIKS KEPUTUSAN KELOMPOK PEROKOK (ALTERNATIF)
+# 2. HALAMAN UTAMA: SIMULASI INPUT MATRIKS KEPUTUSAN KELOMPOK PEROKOK (ALTERNATIF)
 # -------------------------------------------------------------------------
 st.subheader("📊 2. Matriks Keputusan Kelompok Perokok (Alternatif)")
 st.markdown("Kamu bisa mengubah nilai matriks keputusan kelompok alternatif di bawah ini untuk melihat efek perhitungannya:")
@@ -209,7 +205,6 @@ matrix_data = st.data_editor(df_alternatif, hide_index=True, use_container_width
 # 3. PROSES KALKULASI ENGINE SAW BERBASIS CLASS MODUL MURNI
 # -------------------------------------------------------------------------
 if matrix_data is not None and len(weights) > 0:
-    # Memasukkan bobot hasil filter kuesioner dan matriks keputusan ke Class Modul
     saw = SAWMethod(matrix_data, weights, criteria_type)
     
     col_layout1, col_layout2 = st.columns(2)
@@ -237,6 +232,14 @@ if matrix_data is not None and len(weights) > 0:
         
         st.success(f"⭐ **KESIMPULAN:** Kategori **{best_alternative}** menjadi kelompok paling dominan memicu tingkat kecanduan dengan total pencapaian nilai akhir SAW sebesar **{best_score:.4f}**")
         
-        # Grafik batang interaktif
-        fig = px.bar(ranking, x="Alternatif", y="Score", text_auto='.4f', color="Score", color_continuous_scale="Reds", template="plotly_dark")
+        # PERBAIKAN: Membaca px (Plotly Express) dengan aman tanpa memicu NameError
+        fig = px.bar(
+            ranking, 
+            x="Alternatif", 
+            y="Score", 
+            text_auto='.4f', 
+            color="Score", 
+            color_continuous_scale="Reds", 
+            template="plotly_dark"
+        )
         st.plotly_chart(fig, use_container_width=True)
